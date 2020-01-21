@@ -11,9 +11,17 @@ Created on Fri Jan 17 07:55:46 2020
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+# pip install varclushi
+# from varclushi import VarClusHi
 
 # Importing the dataset
-dataset = pd.read_csv('Credit_Card_Applications.csv')
+dataset = pd.read_csv('pharma_products_ts.csv')
+
+# Process the dataset
+# list(dataset.columns.values)
+dataset['product_id'] = dataset['country_new'] + '_' + dataset['product_new']
+dataset_yoy_vol_sum = dataset.groupby(['product_id', 'year'], as_index = False)[['volume']].agg(sum)
+cols = ['months_from_launch_date', 'months_to_loe_date', 'volume']
 X = dataset.iloc[:, :-1].values
 y = dataset.iloc[:, -1].values
 
