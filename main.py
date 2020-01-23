@@ -20,15 +20,33 @@ dataset = pd.read_csv('pharma_products_ts.csv')
 # Process the dataset
 # list(dataset.columns.values)
 dataset['product_id'] = dataset['country_new'] + '_' + dataset['product_new']
+
 dataset_yoy_vol_sum = dataset.groupby(['product_id', 'year'], as_index = False)[['volume']].agg(sum)
-cols = ['months_from_launch_date', 'months_to_loe_date', 'volume']
-X = dataset.iloc[:, :-1].values
-y = dataset.iloc[:, -1].values
+dataset_yoy_vol_sum['volume_lag1'] = dataset_yoy_vol_sum.groupby(['product_id'], as_index = False)[['volume']].shift(1)
+dataset_yoy_vol_sum['volume_yoy'] = dataset_yoy_vol_sum['volume'] / dataset_yoy_vol_sum['volume_lag1'] - 1
+
+dataset_mom_vol_sum = dataset.groupby(['product_id', 'year', 'month'], as_index = False)[['volume']].agg(sum)
+dataset_mom_vol_sum['volume_lag1'] = dataset_mom_vol_sum.groupby(['product_id'], as_index = False)[['volume']].shift(1)
+dataset_mom_vol_sum['volume_mom'] = dataset_mom_vol_sum['volume'] / dataset_mom_vol_sum['volume_lag1'] - 1
+
+dataset = pd.merge(left = dataset,
+                   right = dataset_yoy_vol_sum[['product_id', 'year', 'volume_yoy']],
+                   how = 'left',
+                   on = ['product_id', 'year'])
+dataset = dataset.merge(right = dataset_mom_vol_sum[['product_id', 'year', 'month', 'volume_mom']],
+                        how = 'left',
+                        on = ['product_id', 'year', 'month'])
+
+
+cols = ['product_id', 'months_from_launch_date', 'months_to_loe_date', 'volume_yoy', 'volume_mom']
+X = dataset.dropna(subset = ['months_from_launch_date', 'months_to_loe_date', 'volume_yoy', 'volume_mom'])
+X = X.loc[:, cols].values
+# y = dataset.iloc[:, -1].values
 
 # Feature Scaling
 from sklearn.preprocessing import MinMaxScaler
 sc = MinMaxScaler(feature_range = (0, 1))
-X = sc.fit_transform(X)
+X = sc.fit_transform(X[:, 1:5])
 
 # Training the SOM
 from minisom import MiniSom
