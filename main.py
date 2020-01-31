@@ -55,11 +55,10 @@ X = pd.merge(left = X,
                    right = product_max_date,
                    how = 'left',
                    on = ['product_id'])
-X_ls = X[lambda X: X.date == X.max_date]
 
 # Training the SOM
 from minisom import MiniSom
-som = MiniSom(x = 4, 
+som = MiniSom(x = 3, 
               y = 2, 
               input_len = 4,
               sigma = 0.2,
@@ -74,7 +73,7 @@ mappings = som.win_map(Xsc)
 distances = som.distance_map().T
 
 segment_keys = list(mappings.keys())
-segments = { segment_keys[i-1]: i for i in range(1, 9) }
+segments = { segment_keys[i-1]: i for i in range(1, 7) }
 
 
 for i, x in enumerate(Xsc):
@@ -82,6 +81,7 @@ for i, x in enumerate(Xsc):
     X.loc[i, 'segment'] = segments[w]
     
 
+X_ls = X[lambda X: X.date == X.max_date]
 y = X_ls.loc[:, 'segment'].values
 
 Xsc_ls = Xsc[X_ls.index, :]
@@ -93,8 +93,8 @@ from random import random
 bone()
 pcolor(som.distance_map().T)
 colorbar()
-markers = ['o', 's', 'D', 'X', 'v', 'p', 'p', 'p']
-colors = ['r', 'g', 'y', 'b', 'c', 'm', 'm', 'm']
+markers = ['o', 's', 'D', 'X', 'v', 'p']
+colors = ['r', 'g', 'y', 'b', 'c', 'm']
 for i, x in enumerate(Xsc_ls):
     w = som.winner(x)
     jitter_x = random() * 0.4
