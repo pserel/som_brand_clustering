@@ -38,26 +38,54 @@ dataset = dataset.merge(right = dataset_mom_vol_sum[['product_id', 'year', 'mont
                         on = ['product_id', 'year', 'month'])
 
 
-cols = ['product_id', 'months_from_launch_date', 'months_to_loe_date', 'volume_yoy', 'volume_mom']
-X = dataset.dropna(subset = ['months_from_launch_date', 'months_to_loe_date', 'volume_yoy', 'volume_mom'])
-X = X.loc[:, cols].values
+cols = ['product_id', 'date', 'months_from_launch_date', 'months_to_loe_date', 'volume_yoy', 'volume_mom']
+X = dataset.replace([np.inf, -np.inf], np.nan).dropna(subset = ['volume_yoy', 'volume_mom'])
+X = X.loc[:, cols]
+X.reset_index(drop = True, inplace = True)
 # y = dataset.iloc[:, -1].values
 
 # Feature Scaling
 from sklearn.preprocessing import MinMaxScaler
 sc = MinMaxScaler(feature_range = (0, 1))
-X = sc.fit_transform(X[:, 1:5])
+Xsc = sc.fit_transform(X.iloc[:, 2:6].values)
+
+product_max_date = X.groupby(['product_id'], as_index = False)[['date']].agg(max)
+product_max_date.rename({'date': 'max_date'}, axis = 1, inplace = True)
+X = pd.merge(left = X,
+                   right = product_max_date,
+                   how = 'left',
+                   on = ['product_id'])
+X_ls = X[lambda X: X.date == X.max_date]
 
 # Training the SOM
 from minisom import MiniSom
-som = MiniSom(x = 10, 
-              y = 10, 
-              input_len = 15,
-              sigma = 1.0,
+som = MiniSom(x = 4, 
+              y = 2, 
+              input_len = 4,
+              sigma = 0.2,
               learning_rate = 0.5)
-som.random_weights_init(data = X)
-som.train_random(data = X,
+
+som.random_weights_init(data = Xsc)
+
+som.train_random(data = Xsc,
                  num_iteration = 100)
+
+mappings = som.win_map(Xsc)
+distances = som.distance_map().T
+
+segment_keys = list(mappings.keys())
+segments = { segment_keys[i-1]: i for i in range(1, 9) }
+
+
+for i, x in enumerate(Xsc):
+    w = som.winner(x)
+    X.loc[i, 'segment'] = segments[w]
+    
+
+y = X_ls.loc[:, 'segment'].values
+
+Xsc_ls = Xsc[X_ls.index, :]
+
 
 # Visualizing the results
 from pylab import bone, pcolor, colorbar, plot, show
@@ -65,9 +93,9 @@ from random import random
 bone()
 pcolor(som.distance_map().T)
 colorbar()
-markers = ['o', 's']
-colors = ['r', 'g']
-for i, x in enumerate(X):
+markers = ['o', 's', 'D', 'X', 'v', 'p', 'p', 'p']
+colors = ['r', 'g', 'y', 'b', 'c', 'm', 'm', 'm']
+for i, x in enumerate(Xsc_ls):
     w = som.winner(x)
     jitter_x = random() * 0.4
     jitter_y = random() * 0.4
@@ -76,22 +104,25 @@ for i, x in enumerate(X):
         offset_x = .5
     plot(w[0] + jitter_x + offset_x,
          w[1] + jitter_y + 0.25,
-         markers[y[i]],
-         markeredgecolor = colors[y[i]],
+         markers[int(y[i]) - 1],
+         markeredgecolor = colors[int(y[i]) - 1],
          markerfacecolor = 'None',
-         markersize = 2)
+         markersize = 2
+         )
 show()
 
 # Finding the frauds (after visual inspection)
-mappings = som.win_map(X)
-frauds = np.concatenate((mappings[(7, 4)], mappings[(8, 4)]), axis = 0)
+frauds = np.concatenate((mappings[(0, 0)], 
+                                  mappings[(0, 1)],
+                                  mappings[(1, 0)],
+                                  mappings[(1, 1)]), axis = 0)
 frauds = sc.inverse_transform(frauds)
 
 
 
 # Finding the frauds (based on the distances)
 distances = som.distance_map().T
-mappings = som.win_map(X)
+mappings = som.win_map(Xsc)
 frauds2 = []
  
 for yy in range(len(distances)):
